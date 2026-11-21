@@ -42,7 +42,7 @@ test('adds up qty of the same product across cart lines before checking stock (#
   try {
     const split = await s.call('POST', '/api/cart/total', { items: [{ id: 3, qty: 2 }, { id: 3, qty: 2 }] });
     assert.equal(split.status, 409);
-    assert.deepEqual(split.body, { error: 'only 3 of Mug left' });
+    assert.deepEqual(split.body, { error: 'only 3 of Mug left', short: [{ id: 3, name: 'Mug', requested: 4, inStock: 3 }] });
     assert.deepEqual((await s.call('POST', '/api/cart/total', { items: [{ id: 3, qty: 1 }, { id: 1, qty: 1 }, { id: 3, qty: 2 }] })).body, { total: 32.75 });
   } finally {
     s.close();

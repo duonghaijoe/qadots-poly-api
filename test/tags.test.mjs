@@ -131,3 +131,23 @@ test('a product without the tag never appears in a filtered response', async (t)
     assert.deepEqual(ids(got), ids(all.filter((p) => has(p, tag))), `?tag=${tag}`);
   }
 });
+
+test('POST trims spaced tags, keeps their case, and ?tag= finds them (#3)', async (t) => {
+  const s = await serve(t);
+  const scarf = await s.call('POST', '/api/products', { name: 'QA Scarf', price: 15, stock: 2, tags: [' Sale ', 'Winter'] });
+  assert.equal(scarf.status, 201);
+  assert.deepEqual(scarf.body.tags, ['Sale', 'Winter']);
+  for (const q of ['sale', 'Sale', ' Sale ']) {
+    assert.ok(ids((await byTag(s, q)).body.products).includes(scarf.body.id), `?tag=${q}`);
+  }
+});
+
+test('POST refuses a blank tag with 400 (#3)', async (t) => {
+  const s = await serve(t);
+  for (const tags of [['ORGANIC', '  '], ['']]) {
+    const res = await s.call('POST', '/api/products', { name: 'QA Blank', price: 1, stock: 1, tags });
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /blank/);
+  }
+  assert.equal((await s.call('GET', '/api/products')).body.products.length, 3, 'a refused product must not be added');
+});

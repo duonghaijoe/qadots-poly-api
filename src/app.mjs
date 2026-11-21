@@ -43,6 +43,7 @@ function invalidProduct(b) {
   if (typeof b.price !== 'number' || !(b.price > 0)) return 'price must be a number above 0';
   if (!Number.isInteger(b.stock) || b.stock < 0) return 'stock must be a whole number, 0 or more';
   if (b.tags !== undefined && !(Array.isArray(b.tags) && b.tags.every((t) => typeof t === 'string'))) return 'tags must be a list of strings';
+  if (b.tags?.some((t) => !t.trim())) return 'tags must not be blank';
   return null;
 }
 
@@ -65,7 +66,7 @@ export function appFor(info = {}, store = storeOf()) {
       if (!b) return json(res, 400, { error: 'the body is not JSON' });
       const why = invalidProduct(b);
       if (why) return json(res, 400, { error: why });
-      return json(res, 201, store.add({ name: b.name.trim(), price: b.price, stock: b.stock, tags: b.tags }));
+      return json(res, 201, store.add({ name: b.name.trim(), price: b.price, stock: b.stock, tags: b.tags?.map((t) => t.trim()) }));
     }
 
     const one = path.match(/^\/api\/products\/(\d+)$/);

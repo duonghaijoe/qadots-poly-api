@@ -6,6 +6,6 @@
   "description": "The catalog API of the qadots poly shop: products, stock and cart totals.",
   "scripts": {
     "start": "node src/server.mjs",
-    "test": "node --test test/"
+    "test": "node --test"
   }
 }

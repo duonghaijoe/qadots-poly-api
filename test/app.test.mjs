@@ -36,3 +36,15 @@ test('totals a cart and refuses more than the stock', async () => {
   assert.equal((await s.call('POST', '/api/cart/total', { items: [{ id: 3, qty: 4 }] })).status, 409);
   s.close();
 });
+
+test('adds up qty of the same product across cart lines before checking stock (#6)', async () => {
+  const s = await serve();
+  try {
+    const split = await s.call('POST', '/api/cart/total', { items: [{ id: 3, qty: 2 }, { id: 3, qty: 2 }] });
+    assert.equal(split.status, 409);
+    assert.deepEqual(split.body, { error: 'only 3 of Mug left' });
+    assert.deepEqual((await s.call('POST', '/api/cart/total', { items: [{ id: 3, qty: 1 }, { id: 1, qty: 1 }, { id: 3, qty: 2 }] })).body, { total: 32.75 });
+  } finally {
+    s.close();
+  }
+});

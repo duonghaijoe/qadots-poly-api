@@ -91,13 +91,18 @@ export function appFor(info = {}, store = storeOf()) {
     if (path === '/api/cart/total' && req.method === 'POST') {
       const b = await bodyOf(req);
       if (!b || !Array.isArray(b.items)) return json(res, 400, { error: 'items must be a list' });
-      let total = 0;
+      // Add up qty per product across all lines, so splitting a product over lines cannot beat the stock check.
+      const wanted = new Map();
       for (const item of b.items) {
         const product = store.products.get(Number(item?.id));
         if (!product) return json(res, 400, { error: `no product ${item?.id}` });
         if (!Number.isInteger(item.qty) || item.qty < 1) return json(res, 400, { error: 'qty must be a whole number, 1 or more' });
-        if (item.qty > product.stock) return json(res, 409, { error: `only ${product.stock} of ${product.name} left` });
-        total += product.price * item.qty;
+        wanted.set(product, (wanted.get(product) ?? 0) + item.qty);
+      }
+      let total = 0;
+      for (const [product, qty] of wanted) {
+        if (qty > product.stock) return json(res, 409, { error: `only ${product.stock} of ${product.name} left` });
+        total += product.price * qty;
       }
       return json(res, 200, { total: Math.round(total * 100) / 100 });
     }

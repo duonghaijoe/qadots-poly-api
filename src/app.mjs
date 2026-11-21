@@ -99,11 +99,16 @@ export function appFor(info = {}, store = storeOf()) {
         if (!Number.isInteger(item.qty) || item.qty < 1) return json(res, 400, { error: 'qty must be a whole number, 1 or more' });
         wanted.set(product, (wanted.get(product) ?? 0) + item.qty);
       }
-      let total = 0;
-      for (const [product, qty] of wanted) {
-        if (qty > product.stock) return json(res, 409, { error: `only ${product.stock} of ${product.name} left` });
-        total += product.price * qty;
+      // List every short product in one answer, so the shopper can fix them all at once.
+      const short = [...wanted]
+        .filter(([product, qty]) => qty > product.stock)
+        .map(([product, qty]) => ({ id: product.id, name: product.name, requested: qty, inStock: product.stock }));
+      if (short.length) {
+        const error = short.map((p) => `only ${p.inStock} of ${p.name} left`).join('; ');
+        return json(res, 409, { error, short });
       }
+      let total = 0;
+      for (const [product, qty] of wanted) total += product.price * qty;
       return json(res, 200, { total: Math.round(total * 100) / 100 });
     }
 

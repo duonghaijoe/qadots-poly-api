@@ -1,0 +1,11 @@
+{
+  "name": "qadots-poly-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The catalog API of the qadots poly shop: products, stock and cart totals.",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "test": "node --test test/"
+  }
+}

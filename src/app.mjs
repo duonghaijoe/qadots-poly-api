@@ -4,16 +4,16 @@ import { readFileSync } from 'node:fs';
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 const SEED = [
-  { name: 'Coffee beans', price: 12.5, stock: 40 },
-  { name: 'Tea leaves', price: 8, stock: 25 },
-  { name: 'Mug', price: 6.75, stock: 3 },
+  { name: 'Coffee beans', price: 12.5, stock: 40, tags: ['coffee', 'organic', 'sale'] },
+  { name: 'Tea leaves', price: 8, stock: 25, tags: ['tea', 'organic'] },
+  { name: 'Mug', price: 6.75, stock: 3, tags: ['kitchen', 'sale'] },
 ];
 
 export function storeOf() {
   let next = 1;
   const products = new Map();
   const add = (p) => {
-    const product = { id: next++, name: p.name, price: p.price, stock: p.stock };
+    const product = { id: next++, name: p.name, price: p.price, stock: p.stock, tags: [...(p.tags ?? [])] };
     products.set(product.id, product);
     return product;
   };
@@ -42,6 +42,7 @@ function invalidProduct(b) {
   if (b.name.trim().length > 80) return 'name is longer than 80 characters';
   if (typeof b.price !== 'number' || !(b.price > 0)) return 'price must be a number above 0';
   if (!Number.isInteger(b.stock) || b.stock < 0) return 'stock must be a whole number, 0 or more';
+  if (b.tags !== undefined && !(Array.isArray(b.tags) && b.tags.every((t) => typeof t === 'string'))) return 'tags must be a list of strings';
   return null;
 }
 
@@ -52,13 +53,19 @@ export function appFor(info = {}, store = storeOf()) {
     if (path === '/health') return json(res, 200, { ok: true });
     if (path === '/version') return json(res, 200, { name: 'catalog-api', version: pkg.version, sha: info.sha ?? null, env: info.env ?? null });
 
-    if (path === '/api/products' && req.method === 'GET') return json(res, 200, { products: [...store.products.values()] });
+    if (path === '/api/products' && req.method === 'GET') {
+      const products = [...store.products.values()];
+      // An empty (or blank) tag means no filter; matching is whole-tag and case-insensitive.
+      const tag = (url.searchParams.get('tag') ?? '').trim().toLowerCase();
+      if (!tag) return json(res, 200, { products });
+      return json(res, 200, { products: products.filter((p) => p.tags.some((t) => t.toLowerCase() === tag)) });
+    }
     if (path === '/api/products' && req.method === 'POST') {
       const b = await bodyOf(req);
       if (!b) return json(res, 400, { error: 'the body is not JSON' });
       const why = invalidProduct(b);
       if (why) return json(res, 400, { error: why });
-      return json(res, 201, store.add({ name: b.name.trim(), price: b.price, stock: b.stock }));
+      return json(res, 201, store.add({ name: b.name.trim(), price: b.price, stock: b.stock, tags: b.tags }));
     }
 
     const one = path.match(/^\/api\/products\/(\d+)$/);

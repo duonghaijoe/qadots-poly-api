@@ -96,6 +96,9 @@ export function appFor(info = {}, store = storeOf()) {
       // Category matches the same way as tag: whole name, case-insensitive; an unknown one lists nothing.
       const category = (url.searchParams.get('category') ?? '').trim().toLowerCase();
       if (category) products = products.filter((p) => p.category?.toLowerCase() === category);
+      // Search: the name has q in it as plain text, any case; an empty (or blank) q lists everything.
+      const q = (url.searchParams.get('q') ?? '').trim().toLowerCase();
+      if (q) products = products.filter((p) => p.name.toLowerCase().includes(q));
       // Low stock: at most maxStock left, so maxStock=0 lists the sold out products.
       if (maxStock !== null) products = products.filter((p) => p.stock <= maxStock);
       if (sort) products.sort(SORTS[sort]);

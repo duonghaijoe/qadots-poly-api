@@ -47,6 +47,24 @@ function invalidProduct(b) {
   return null;
 }
 
+export const DEFAULT_PAGE_SIZE = 20;
+export const MAX_PAGE_SIZE = 100;
+
+// Reads limit and offset; an absent or empty value takes its default, anything else must be a plain whole number.
+function pageOf(params) {
+  const whole = (name, fallback) => {
+    const raw = params.get(name);
+    if (raw === null || raw === '') return fallback;
+    return /^\d+$/.test(raw) ? Number(raw) : NaN;
+  };
+  const limit = whole('limit', DEFAULT_PAGE_SIZE);
+  if (!(limit >= 1)) return { error: 'limit must be a whole number, 1 or more' };
+  if (limit > MAX_PAGE_SIZE) return { error: `limit must be at most ${MAX_PAGE_SIZE}` };
+  const offset = whole('offset', 0);
+  if (!(offset >= 0)) return { error: 'offset must be a whole number, 0 or more' };
+  return { limit, offset };
+}
+
 export function appFor(info = {}, store = storeOf()) {
   return async (req, res) => {
     const url = new URL(req.url, 'http://x');
@@ -55,11 +73,14 @@ export function appFor(info = {}, store = storeOf()) {
     if (path === '/version') return json(res, 200, { name: 'catalog-api', version: pkg.version, sha: info.sha ?? null, env: info.env ?? null });
 
     if (path === '/api/products' && req.method === 'GET') {
-      const products = [...store.products.values()];
+      const page = pageOf(url.searchParams);
+      if (page.error) return json(res, 400, { error: page.error });
+      // Ids only grow, so id order is stable: a product keeps its place as others are added or changed.
+      let products = [...store.products.values()].sort((a, b) => a.id - b.id);
       // An empty (or blank) tag means no filter; matching is whole-tag and case-insensitive.
       const tag = (url.searchParams.get('tag') ?? '').trim().toLowerCase();
-      if (!tag) return json(res, 200, { products });
-      return json(res, 200, { products: products.filter((p) => p.tags.some((t) => t.toLowerCase() === tag)) });
+      if (tag) products = products.filter((p) => p.tags.some((t) => t.toLowerCase() === tag));
+      return json(res, 200, { products: products.slice(page.offset, page.offset + page.limit), total: products.length });
     }
     if (path === '/api/products' && req.method === 'POST') {
       const b = await bodyOf(req);

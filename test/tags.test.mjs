@@ -95,7 +95,7 @@ test('an unknown tag returns 200 with an empty list', async (t) => {
   const s = await serve(t);
   const { status, body } = await byTag(s, 'no-such-tag-anywhere');
   assert.equal(status, 200);
-  assert.deepEqual(body, { products: [] });
+  assert.deepEqual(body.products, []);
 });
 
 test('no tag or an empty tag returns the full list', async (t) => {

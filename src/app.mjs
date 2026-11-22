@@ -50,17 +50,19 @@ function invalidProduct(b) {
 export const DEFAULT_PAGE_SIZE = 20;
 export const MAX_PAGE_SIZE = 100;
 
-// Reads limit and offset; an absent or empty value takes its default, anything else must be a plain whole number.
+// An absent or empty query value takes its fallback; anything else must be a plain whole number (NaN if not).
+function whole(params, name, fallback) {
+  const raw = params.get(name);
+  if (raw === null || raw === '') return fallback;
+  return /^\d+$/.test(raw) ? Number(raw) : NaN;
+}
+
+// Reads limit and offset.
 function pageOf(params) {
-  const whole = (name, fallback) => {
-    const raw = params.get(name);
-    if (raw === null || raw === '') return fallback;
-    return /^\d+$/.test(raw) ? Number(raw) : NaN;
-  };
-  const limit = whole('limit', DEFAULT_PAGE_SIZE);
+  const limit = whole(params, 'limit', DEFAULT_PAGE_SIZE);
   if (!(limit >= 1)) return { error: 'limit must be a whole number, 1 or more' };
   if (limit > MAX_PAGE_SIZE) return { error: `limit must be at most ${MAX_PAGE_SIZE}` };
-  const offset = whole('offset', 0);
+  const offset = whole(params, 'offset', 0);
   if (!(offset >= 0)) return { error: 'offset must be a whole number, 0 or more' };
   return { limit, offset };
 }
@@ -75,11 +77,15 @@ export function appFor(info = {}, store = storeOf()) {
     if (path === '/api/products' && req.method === 'GET') {
       const page = pageOf(url.searchParams);
       if (page.error) return json(res, 400, { error: page.error });
+      const maxStock = whole(url.searchParams, 'maxStock', null);
+      if (Number.isNaN(maxStock)) return json(res, 400, { error: 'maxStock must be a whole number, 0 or more' });
       // Ids only grow, so id order is stable: a product keeps its place as others are added or changed.
       let products = [...store.products.values()].sort((a, b) => a.id - b.id);
       // An empty (or blank) tag means no filter; matching is whole-tag and case-insensitive.
       const tag = (url.searchParams.get('tag') ?? '').trim().toLowerCase();
       if (tag) products = products.filter((p) => p.tags.some((t) => t.toLowerCase() === tag));
+      // Low stock: at most maxStock left, so maxStock=0 lists the sold out products.
+      if (maxStock !== null) products = products.filter((p) => p.stock <= maxStock);
       return json(res, 200, { products: products.slice(page.offset, page.offset + page.limit), total: products.length });
     }
     if (path === '/api/products' && req.method === 'POST') {

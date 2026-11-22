@@ -67,6 +67,12 @@ function pageOf(params) {
   return { limit, offset };
 }
 
+// The orders ?sort= accepts; ties keep id order, so sorted pages stay stable.
+const SORTS = {
+  price: (a, b) => a.price - b.price,
+  '-price': (a, b) => b.price - a.price,
+};
+
 export function appFor(info = {}, store = storeOf()) {
   return async (req, res) => {
     const url = new URL(req.url, 'http://x');
@@ -79,6 +85,8 @@ export function appFor(info = {}, store = storeOf()) {
       if (page.error) return json(res, 400, { error: page.error });
       const maxStock = whole(url.searchParams, 'maxStock', null);
       if (Number.isNaN(maxStock)) return json(res, 400, { error: 'maxStock must be a whole number, 0 or more' });
+      const sort = url.searchParams.get('sort') || null;
+      if (sort !== null && !Object.hasOwn(SORTS, sort)) return json(res, 400, { error: `sort must be one of: ${Object.keys(SORTS).join(', ')}` });
       // Ids only grow, so id order is stable: a product keeps its place as others are added or changed.
       let products = [...store.products.values()].sort((a, b) => a.id - b.id);
       // An empty (or blank) tag means no filter; matching is whole-tag and case-insensitive.
@@ -86,6 +94,7 @@ export function appFor(info = {}, store = storeOf()) {
       if (tag) products = products.filter((p) => p.tags.some((t) => t.toLowerCase() === tag));
       // Low stock: at most maxStock left, so maxStock=0 lists the sold out products.
       if (maxStock !== null) products = products.filter((p) => p.stock <= maxStock);
+      if (sort) products.sort(SORTS[sort]);
       return json(res, 200, { products: products.slice(page.offset, page.offset + page.limit), total: products.length });
     }
     if (path === '/api/products' && req.method === 'POST') {

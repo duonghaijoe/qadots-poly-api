@@ -77,8 +77,10 @@ export function appFor(info = {}, store = storeOf()) {
       if (req.method === 'PATCH') {
         const b = await bodyOf(req);
         if (!b) return json(res, 400, { error: 'the body is not JSON' });
-        if (!Number.isInteger(b.stock) || b.stock < 0) return json(res, 400, { error: 'stock must be a whole number, 0 or more' });
-        product.stock = b.stock;
+        // A restock can send { delta } (how many came in or went out) instead of the new { stock }.
+        const next = b.delta !== undefined ? product.stock + b.delta : b.stock;
+        if (!Number.isInteger(next)) return json(res, 400, { error: 'stock must be a whole number' });
+        product.stock = next;
         return json(res, 200, product);
       }
       if (req.method === 'DELETE') {

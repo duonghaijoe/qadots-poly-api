@@ -1,5 +1,6 @@
 // The catalog API of the shop: products, their stock, and the total of a cart.
 import { readFileSync } from 'node:fs';
+import { applyCoupons, codesOf, skipped } from './coupons.mjs';
 
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
@@ -120,6 +121,8 @@ export function appFor(info = {}, store = storeOf()) {
     if (path === '/api/cart/total' && req.method === 'POST') {
       const b = await bodyOf(req);
       if (!b || !Array.isArray(b.items)) return json(res, 400, { error: 'items must be a list' });
+      const coupons = codesOf(b.coupons);
+      if (coupons.error) return json(res, 400, { error: coupons.error });
       // Add up qty per product across all lines, so splitting a product over lines cannot beat the stock check.
       const wanted = new Map();
       for (const item of b.items) {
@@ -136,9 +139,14 @@ export function appFor(info = {}, store = storeOf()) {
         const error = short.map((p) => `only ${p.inStock} of ${p.name} left`).join('; ');
         return json(res, 409, { error, short });
       }
-      let total = 0;
-      for (const [product, qty] of wanted) total += product.price * qty;
-      return json(res, 200, { total: Math.round(total * 100) / 100 });
+      const lines = [...wanted].map(([product, qty]) => ({ product, qty }));
+      if (!coupons.codes.length) {
+        let total = 0;
+        for (const { product, qty } of lines) total += product.price * qty;
+        return json(res, 200, { total: Math.round(total * 100) / 100 });
+      }
+      const priced = applyCoupons(lines, coupons.codes);
+      return json(res, 200, { ...priced, skipped: skipped(lines, coupons.codes, priced.discounts) });
     }
 
     json(res, 404, { error: 'not found' });

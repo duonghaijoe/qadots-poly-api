@@ -13,7 +13,7 @@ export function storeOf() {
   let next = 1;
   const products = new Map();
   const add = (p) => {
-    const product = { id: next++, name: p.name, price: p.price, stock: p.stock, tags: [...(p.tags ?? [])] };
+    const product = { id: next++, name: p.name, price: p.price, stock: p.stock, category: p.category ?? null, tags: [...(p.tags ?? [])] };
     products.set(product.id, product);
     return product;
   };
@@ -44,6 +44,7 @@ function invalidProduct(b) {
   if (!Number.isInteger(b.stock) || b.stock < 0) return 'stock must be a whole number, 0 or more';
   if (b.tags !== undefined && !(Array.isArray(b.tags) && b.tags.every((t) => typeof t === 'string'))) return 'tags must be a list of strings';
   if (b.tags?.some((t) => !t.trim())) return 'tags must not be blank';
+  if (b.category !== undefined && b.category !== null && !(typeof b.category === 'string' && b.category.trim())) return 'category must be a word, not blank';
   return null;
 }
 
@@ -92,6 +93,9 @@ export function appFor(info = {}, store = storeOf()) {
       // An empty (or blank) tag means no filter; matching is whole-tag and case-insensitive.
       const tag = (url.searchParams.get('tag') ?? '').trim().toLowerCase();
       if (tag) products = products.filter((p) => p.tags.some((t) => t.toLowerCase() === tag));
+      // Category matches the same way as tag: whole name, case-insensitive; an unknown one lists nothing.
+      const category = (url.searchParams.get('category') ?? '').trim().toLowerCase();
+      if (category) products = products.filter((p) => p.category?.toLowerCase() === category);
       // Low stock: at most maxStock left, so maxStock=0 lists the sold out products.
       if (maxStock !== null) products = products.filter((p) => p.stock <= maxStock);
       if (sort) products.sort(SORTS[sort]);
@@ -102,7 +106,7 @@ export function appFor(info = {}, store = storeOf()) {
       if (!b) return json(res, 400, { error: 'the body is not JSON' });
       const why = invalidProduct(b);
       if (why) return json(res, 400, { error: why });
-      return json(res, 201, store.add({ name: b.name.trim(), price: b.price, stock: b.stock, tags: b.tags?.map((t) => t.trim()) }));
+      return json(res, 201, store.add({ name: b.name.trim(), price: b.price, stock: b.stock, category: b.category?.trim(), tags: b.tags?.map((t) => t.trim()) }));
     }
 
     const one = path.match(/^\/api\/products\/(\d+)$/);
